@@ -1,0 +1,73 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ 'main' ]
+  pull_request:
+    branches: [ 'main' ]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  devsecops:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 0. Récupération du code (v4 en 2025)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      ############################################
+      # 1. Analyse SAST CodeQL (v3/v4)
+      ############################################
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      ############################################
+      # 2. Analyse sécurité Python avec Bandit
+      ############################################
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit
+        # On génère un fichier SARIF pour que GitHub affiche les alertes proprement
+        run: bandit -r api --severity-level high -f sarif -o bandit-results.sarif
+        continue-on-error: true
+
+      - name: Upload Bandit Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-results.sarif
+
+      ############################################
+      # 3. Build Docker
+      ############################################
+      - name: Build Docker image
+        run: docker build -t devsecops-api .
+
+      ############################################
+      # 4. Scan Docker avec Trivy
+      ############################################
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@0.28.0 # Version stable en 2025
+        with:
+          scan-type: 'image'
+          image-ref: 'devsecops-api'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1' # Bloque la pipeline si des failles graves sont trouvées
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() # Upload même si des failles sont trouvées (exit-code 1)
+        with:
+          sarif_file: trivy-results.sarif
