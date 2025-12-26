@@ -68,16 +68,3 @@ def hello():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
-    from flask import Flask, request
-    import sqlite3
-    import pickle
-    import subprocess
-    import hashlib
-    import os
-    import logging
-    app = Flask(__name__)
-    # SECRET HARDCODÉ (mauvaise pratique)
-    API_KEY = "API-KEY-123456"
-    # Logging non sécurisé
-    logging.basicConfig(level=logging.DEBUG)
